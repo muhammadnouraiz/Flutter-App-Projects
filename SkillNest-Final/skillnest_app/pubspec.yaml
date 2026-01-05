@@ -1,0 +1,65 @@
+name: skillnest
+description: A personal skill-tracking and growth management app built in Flutter using local Hive storage.
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 🧠 State Management
+  provider: ^6.1.2
+  timeago: ^3.7.1
+
+  # 💾 Local Storage
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+  path_provider: ^2.1.3
+
+  # 🧮 Charts (Progress Screen)
+  fl_chart: ^0.65.0
+
+  # ✨ UI & Fonts
+  google_fonts: ^6.2.1
+  smooth_page_indicator: ^1.1.0
+  intl: ^0.19.0
+  image_picker: ^1.2.1
+
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+  # ⚙️ Hive Type Adapters
+  build_runner: ^2.4.8
+  hive_generator: ^2.0.1
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+    - assets/fonts/
+    # [FIXED] This line below is redundant because 'assets/images/' already includes it.
+    # - assets/images/sparkle_logo.png
+
+  fonts:
+    - family: Poppins
+      fonts:
+        - asset: assets/fonts/Poppins-Regular.ttf
+        - asset: assets/fonts/Poppins-Medium.ttf
+        - asset: assets/fonts/Poppins-SemiBold.ttf
+        - asset: assets/fonts/Poppins-Bold.ttf
+
+# [FIXED] This section is now at the root level (no indentation)
+# and is no longer inside the 'flutter:' block above.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/sparkle_logo.png" # <-- Make sure this path is correct
+  min_sdk_android: 21
