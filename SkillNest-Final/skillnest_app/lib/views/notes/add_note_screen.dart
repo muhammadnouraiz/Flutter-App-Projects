@@ -1,14 +1,12 @@
-// File: lib/views/notes/add_note_screen.dart
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../models/note_model.dart';
 import '../../models/skill_model.dart';
-// [+ NEW] Imports for achievement logic
 import '../../models/badge_model.dart';
 import '../../services/achievement_service.dart';
 
 class AddNoteScreen extends StatefulWidget {
-  // [FIXED] Use super.key
   const AddNoteScreen({super.key});
 
   @override
@@ -21,9 +19,10 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final _desc = TextEditingController();
   final _progress = TextEditingController();
 
+  DateTime? _selectedDeadline;
+
   late Box<NoteModel> notesBox;
   late Box<SkillModel> skillsBox;
-  // [+ NEW] Add box for badges
   late Box<BadgeModel> badgesBox;
   dynamic skillKey;
   SkillModel? skill;
@@ -36,14 +35,12 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-
     final userBox = Hive.box('userBox');
     final email = userBox.get('currentUserEmail', defaultValue: 'guest') as String;
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
 
     notesBox = Hive.box<NoteModel>('notesBox_$sanitizedEmail');
     skillsBox = Hive.box<SkillModel>('skillsBox_$sanitizedEmail');
-    // [+ NEW] Open badges box
     badgesBox = Hive.box<BadgeModel>('badgesBox_$sanitizedEmail');
 
     final args = ModalRoute.of(context)?.settings.arguments;
@@ -53,22 +50,78 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     }
   }
 
+  // [FIXED] Issue 3: Restrict Note Deadline based on Skill Deadline
+  Future<void> _pickDeadline() async {
+    final now = DateTime.now();
+
+    // Determine the maximum allowed date
+    // If the skill has a deadline, that is our limit. Otherwise, 5 years.
+    DateTime lastAllowedDate = DateTime(now.year + 5);
+
+    // Check if skill exists and has a deadline
+    // Note: Assuming SkillModel has a 'deadline' field based on your request.
+    // If SkillModel.deadline is null, we assume open-ended.
+    if (skill != null && skill!.deadline != null) {
+      lastAllowedDate = skill!.deadline!;
+    }
+
+    // Edge Case: If the skill deadline is already passed, alert the user
+    if (lastAllowedDate.isBefore(now)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cannot set deadline: The Skill deadline has already passed.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDeadline ?? now,
+      firstDate: now,
+      lastDate: lastAllowedDate, // [FIXED] This prevents picking invalid dates
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(primary: _brandColor),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => _selectedDeadline = picked);
+    }
+  }
+
   Future<void> _save() async {
     if (!_form.currentState!.validate()) return;
 
-    final p = int.tryParse(_progress.text) ?? 0;
+    // [FIXED] Double check validation on save just in case
+    if (skill != null && skill!.deadline != null && _selectedDeadline != null) {
+      if (_selectedDeadline!.isAfter(skill!.deadline!)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Note deadline cannot be after Skill deadline.')),
+        );
+        return;
+      }
+    }
 
+    final p = int.tryParse(_progress.text) ?? 0;
     final note = NoteModel(
       title: _title.text,
       description: _desc.text,
       createdAt: DateTime.now(),
       skillId: skillKey,
       progressGain: p,
+      deadline: _selectedDeadline,
     );
 
     await notesBox.add(note);
 
-    if (p > 0) {
+    if (p > 0 && skillKey != null) {
       final skillToUpdate = skillsBox.get(skillKey);
       if (skillToUpdate != null) {
         skillToUpdate.progress = (skillToUpdate.progress + p).clamp(0, 100);
@@ -77,168 +130,50 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
     }
 
     if (mounted) {
-      // --- [+ NEW] CHECK FOR BADGES ---
       await AchievementService.checkNoteAddedBadges(notesBox, badgesBox, context);
       await AchievementService.checkSkillCompletedBadges(skillsBox, badgesBox, context);
-      // --- End of Badge Check ---
-
-      if (!mounted) return; // Re-check after awaits
+      if (!mounted) return;
       Navigator.pop(context);
     }
   }
 
-  @override
-  void dispose() {
-    _title.dispose();
-    _desc.dispose();
-    _progress.dispose();
-    super.dispose();
-  }
-
-  //
-  // --- HELPER METHODS MOVED HERE TO FIX ERRORS ---
-  //
-
-  /// Builds the light pink card showing skill name and progress
+  // --- Helper Widgets ---
   Widget _buildSkillInfoCard() {
-    if (skill == null) {
-      return const Center(child: Text('Loading skill...'));
-    }
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: _lightPinkColor, // This card is styled like the "Weekly Progress"
-        borderRadius: BorderRadius.circular(12),
-      ),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: _lightPinkColor, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            skill!.name,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+          Text(skill?.name ?? 'Skill Loading...', style: const TextStyle(fontWeight: FontWeight.bold)),
+          if (skill?.deadline != null)
+            Text(
+              'Skill ends: ${DateFormat('MMM dd, yyyy').format(skill!.deadline!)}',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Current Progress: ${skill!.progress}%',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black54,
-            ),
-          ),
         ],
       ),
     );
   }
 
-  /// Reusable helper for form section titles
-  Widget _buildSectionTitle(String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w600,
-          color: Colors.black87,
-        ),
-      ),
-    );
-  }
-
-  /// Reusable helper for text field styling
-  InputDecoration _buildInputDecoration(String hintText) {
-    return InputDecoration(
-      hintText: hintText,
-      hintStyle: const TextStyle(color: Colors.grey),
-      filled: true,
-      fillColor: _textFieldColor, // White background
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: _borderColor),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: _borderColor),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _brandColor, width: 2),
-      ),
-    );
-  }
-
-  /// Builds the "Cancel" and "Save Note" buttons at the bottom
+  Widget _buildSectionTitle(String t) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)));
+  InputDecoration _buildInputDecoration(String h) => InputDecoration(hintText: h, filled: true, fillColor: _textFieldColor, border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: _borderColor)));
   Widget _buildActionButtons() {
     return Row(
       children: [
-        // --- Cancel Button ---
-        Expanded(
-          child: ElevatedButton(
-            onPressed: () => Navigator.pop(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _textFieldColor,
-              foregroundColor: Colors.black54,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: _borderColor),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            child: const Text('Cancel'),
-          ),
-        ),
+        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel'))),
         const SizedBox(width: 16),
-
-        // --- Save Button ---
-        Expanded(
-          child: ElevatedButton(
-            onPressed: _save,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _brandColor,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              textStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            child: const Text('Save Note'),
-          ),
-        ),
+        Expanded(child: ElevatedButton(onPressed: _save, style: ElevatedButton.styleFrom(backgroundColor: _brandColor, foregroundColor: Colors.white), child: const Text('Save Note'))),
       ],
     );
   }
-
-  // --- END OF HELPER METHODS ---
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      appBar: AppBar(
-        title: const Text(
-          'Add Progress Note',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.grey[50],
-        foregroundColor: Colors.black87,
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('Add Progress Note', style: TextStyle(fontWeight: FontWeight.bold))),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Form(
@@ -246,44 +181,47 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // --- Skill Info Card ---
               _buildSkillInfoCard(),
               const SizedBox(height: 24),
-
-              // --- Note Title ---
               _buildSectionTitle('Note Title*'),
-              TextFormField(
-                controller: _title,
-                decoration: _buildInputDecoration(
-                    'e.g., Watched Figma Basics'),
-                validator: (v) =>
-                (v == null || v.isEmpty) ? 'Enter title' : null,
-              ),
+              TextFormField(controller: _title, decoration: _buildInputDecoration('e.g., Finished Module 1'), validator: (v) => (v == null || v.isEmpty) ? 'Enter title' : null),
               const SizedBox(height: 24),
 
-              // --- Description ---
+              // --- Deadline Picker with Validation Logic ---
+              _buildSectionTitle('Deadline (Optional)'),
+              InkWell(
+                onTap: _pickDeadline,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(color: _textFieldColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: _borderColor)),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_today, color: _brandColor, size: 20),
+                      const SizedBox(width: 12),
+                      Text(_selectedDeadline == null ? 'No deadline set' : DateFormat('MMM dd, yyyy').format(_selectedDeadline!)),
+                      const Spacer(),
+                      if (_selectedDeadline != null)
+                        IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => setState(() => _selectedDeadline = null)),
+                    ],
+                  ),
+                ),
+              ),
+              if (skill?.deadline != null && _selectedDeadline == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 4),
+                  child: Text(
+                    'Must be before: ${DateFormat('MMM dd, yyyy').format(skill!.deadline!)}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ),
+              const SizedBox(height: 24),
+
               _buildSectionTitle('Description*'),
-              TextFormField(
-                controller: _desc,
-                decoration: _buildInputDecoration('Describe what u did'),
-                maxLines: 4, // Make it larger
-                validator: (v) => (v == null || v.isEmpty)
-                    ? 'Enter a description'
-                    : null,
-              ),
+              TextFormField(controller: _desc, maxLines: 3, decoration: _buildInputDecoration('What did you achieve?')),
               const SizedBox(height: 24),
-
-              // --- Progress Update ---
-              _buildSectionTitle('Progress Update (%)'),
-              TextFormField(
-                controller: _progress,
-                decoration: _buildInputDecoration(
-                    'How much progress is done'),
-                keyboardType: TextInputType.number,
-              ),
+              _buildSectionTitle('Progress Gain (%)'),
+              TextFormField(controller: _progress, keyboardType: TextInputType.number, decoration: _buildInputDecoration('0')),
               const SizedBox(height: 32),
-
-              // --- Buttons ---
               _buildActionButtons(),
             ],
           ),

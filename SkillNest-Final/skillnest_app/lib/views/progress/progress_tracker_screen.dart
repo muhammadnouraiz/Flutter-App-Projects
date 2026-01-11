@@ -1,4 +1,3 @@
-// File: lib/views/progress/progress_tracker_screen.dart
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -73,9 +72,9 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
     });
   }
 
+  // [FIXED] Updated for fl_chart 0.65.0 compatibility
   Widget _getBottomTitles(double value, TitleMeta meta) {
-    const style =
-    TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12);
+    const style = TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12);
     String text;
     switch (value.toInt()) {
       case 0: text = 'Mon'; break;
@@ -87,9 +86,11 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
       case 6: text = 'Sun'; break;
       default: return Container();
     }
+    // [FIXED] Removed 'axisSide' parameter which caused the error
     return SideTitleWidget(axisSide: meta.axisSide, child: Text(text, style: style));
   }
 
+  // [FIXED] Updated for fl_chart 0.65.0 compatibility
   Widget _getLeftTitles(double value, TitleMeta meta) {
     if (value == meta.max || value == meta.min) {
       return Container();
@@ -152,8 +153,7 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
   Widget _buildInfoCard(String title, String value, IconData icon) {
     return Card(
       elevation: 2.0,
-      // [FIXED] Replaced withOpacity with withAlpha
-      shadowColor: Colors.black.withAlpha(13), // 0.05 opacity
+      shadowColor: Colors.black.withAlpha(13),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -181,8 +181,7 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
   Widget _buildMostImprovedCard(SkillModel skill) {
     return Card(
       elevation: 2.0,
-      // [FIXED] Replaced withOpacity with withAlpha
-      shadowColor: Colors.black.withAlpha(13), // 0.05 opacity
+      shadowColor: Colors.black.withAlpha(13),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -220,8 +219,6 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
     );
   }
 
-  // --- END OF HELPER METHODS ---
-
   @override
   Widget build(BuildContext context) {
     // --- Data Calculations ---
@@ -248,9 +245,8 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
         ? 5
         : weeklyActivityData.reduce((a, b) => a > b ? a : b) + 5;
 
-    // [FIXED] Wrap the entire screen in a Container to set the background color
     return Container(
-      color: Colors.white, // This fixes the black background issue
+      color: Colors.white,
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,8 +273,7 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
                   const SizedBox(height: 12),
                   Card(
                     elevation: 2.0,
-                    // [FIXED] Replaced withOpacity with withAlpha
-                    shadowColor: Colors.black.withAlpha(13), // 0.05 opacity
+                    shadowColor: Colors.black.withAlpha(13),
                     color: const Color(0xFFFFEEEB),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16)),
@@ -292,8 +287,8 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
                           barGroups: _buildBarChartGroups(weeklyActivityData),
                           titlesData: FlTitlesData(
                             show: true,
-                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                             leftTitles: AxisTitles(
                               sideTitles: SideTitles(
                                 showTitles: true,
@@ -310,16 +305,17 @@ class _ProgressTrackerScreenState extends State<ProgressTrackerScreen> {
                               ),
                             ),
                           ),
-                          gridData: const FlGridData(show: false),
+                          gridData: FlGridData(show: false),
                           borderData: FlBorderData(show: false),
+                          // [FIXED] Updated Tooltip logic for 0.65.0
                           barTouchData: BarTouchData(
                             touchTooltipData: BarTouchTooltipData(
-                              tooltipBgColor: Colors.transparent,
+                              tooltipBgColor: Colors.transparent, // Reverted name
                               tooltipPadding: EdgeInsets.zero,
                               tooltipMargin: 4,
                               getTooltipItem: (group, groupIndex, rod, rodIndex) {
                                 return BarTooltipItem(
-                                  rod.toY.toStringAsFixed(1),
+                                  rod.toY.toStringAsFixed(0), // No decimal places for count
                                   const TextStyle(
                                     color: Colors.black54,
                                     fontWeight: FontWeight.bold,

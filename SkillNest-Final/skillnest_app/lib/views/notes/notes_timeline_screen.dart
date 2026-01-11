@@ -1,11 +1,11 @@
-// File: lib/views/notes/notes_timeline_screen.dart
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:intl/intl.dart';
 import '../../models/note_model.dart';
 import '../../models/skill_model.dart';
 
 class NotesTimelineScreen extends StatefulWidget {
-  const NotesTimelineScreen({Key? key}) : super(key: key);
+  const NotesTimelineScreen({super.key});
   @override
   State<NotesTimelineScreen> createState() => _NotesTimelineScreenState();
 }
@@ -17,23 +17,15 @@ class _NotesTimelineScreenState extends State<NotesTimelineScreen> {
   @override
   void initState() {
     super.initState();
-
-    // 🧠 Get the correct user-specific boxes
-    // 1. Get the main userBox
     final userBox = Hive.box('userBox');
-    // 2. Get the currently logged-in user's email (default to 'guest')
     final email = userBox.get('currentUserEmail', defaultValue: 'guest') as String;
-    // 3. Sanitize the email to match the box name created at login
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
-
-    // 4. Assign the correct, *already opened* boxes
     notesBox = Hive.box<NoteModel>('notesBox_$sanitizedEmail');
     skillsBox = Hive.box<SkillModel>('skillsBox_$sanitizedEmail');
   }
 
   @override
   Widget build(BuildContext context) {
-    // This now reads from the correct user's notesBox
     final notes = notesBox.values.toList().cast<NoteModel>()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
@@ -49,22 +41,21 @@ class _NotesTimelineScreenState extends State<NotesTimelineScreen> {
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (ctx, i) {
           final n = notes[i];
-          // This now gets the skill from the correct user's skillsBox
           final skill = skillsBox.get(n.skillId);
+
+          bool isOverdue = false;
+          if (n.deadline != null) {
+            isOverdue = n.deadline!.isBefore(DateTime.now()) &&
+                DateFormat('yMd').format(n.deadline!) != DateFormat('yMd').format(DateTime.now());
+          }
+
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Column(children: [
-                const SizedBox(height: 16), // Align dot with text
-                Container(
-                    width: 10,
-                    height: 10,
-                    decoration: const BoxDecoration(
-                        color: Color(0xFFFF6B4A), shape: BoxShape.circle)),
-                Container(
-                    width: 2,
-                    height: 100, // Adjust height as needed
-                    color: Colors.grey[300])
+                const SizedBox(height: 16),
+                const Icon(Icons.circle, size: 12, color: Color(0xFFFF6B4A)),
+                Container(width: 2, height: 100, color: Colors.grey[300])
               ]),
               const SizedBox(width: 12),
               Expanded(
@@ -74,19 +65,30 @@ class _NotesTimelineScreenState extends State<NotesTimelineScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(n.title,
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 6),
+                        Text(n.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 4),
                         Text(n.description),
-                        const SizedBox(height: 8),
+
+                        if (n.deadline != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.timer, size: 14, color: isOverdue ? Colors.red : Colors.blue),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Due: ${DateFormat('MMM dd').format(n.deadline!)}',
+                                style: TextStyle(color: isOverdue ? Colors.red : Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ],
+
+                        const Divider(),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(skill?.name ?? 'Unknown Skill',
-                                style: const TextStyle(
-                                    color: Colors.black54,
-                                    fontStyle: FontStyle.italic)),
-                            Text(n.createdAt.toLocal().toString().split(' ')[0]),
+                            Text(skill?.name ?? 'General', style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 11)),
+                            Text(DateFormat('MMM dd').format(n.createdAt), style: const TextStyle(fontSize: 11)),
                           ],
                         ),
                       ],

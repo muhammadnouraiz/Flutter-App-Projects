@@ -18,11 +18,16 @@ class NoteModel extends HiveObject {
   @HiveField(4)
   int? progressGain;
 
+  // Added new optional field for deadline
+  @HiveField(5)
+  DateTime? deadline;
+
   NoteModel({
     required this.title,
     required this.description,
     required this.createdAt,
     required this.skillId,
     this.progressGain,
+    this.deadline, // Added to constructor
   });
 }
