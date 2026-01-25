@@ -17,6 +17,9 @@ class _NotesTimelineScreenState extends State<NotesTimelineScreen> {
   @override
   void initState() {
     super.initState();
+    // Logic: Database Setup.
+    // 1. Identifies the current user.
+    // 2. Opens the specific 'notesBox' and 'skillsBox' for that user.
     final userBox = Hive.box('userBox');
     final email = userBox.get('currentUserEmail', defaultValue: 'guest') as String;
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
@@ -26,38 +29,52 @@ class _NotesTimelineScreenState extends State<NotesTimelineScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Logic: Data Sorting.
+    // Fetches all notes and sorts them by Date (Desc: Newest on top, Oldest on bottom).
     final notes = notesBox.values.toList().cast<NoteModel>()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return Scaffold(
+      // UI Component: Standard App Bar (Orange)
       appBar: AppBar(
         title: const Text('Notes Timeline'),
         backgroundColor: const Color(0xFFFF6B4A),
         foregroundColor: Colors.white,
       ),
+      // UI Component: The Scrollable List
       body: ListView.separated(
         padding: const EdgeInsets.all(12),
         itemCount: notes.length,
         separatorBuilder: (_, __) => const SizedBox(height: 10),
         itemBuilder: (ctx, i) {
           final n = notes[i];
+          // Logic: "Foreign Key" Lookup.
+          // Uses the 'skillId' stored in the note to fetch the actual Skill Name from the skillsBox.
           final skill = skillsBox.get(n.skillId);
 
+          // Logic: Overdue Calculation.
+          // Checks if the note had a deadline, if that date is in the past, and if it isn't "Today".
           bool isOverdue = false;
           if (n.deadline != null) {
             isOverdue = n.deadline!.isBefore(DateTime.now()) &&
                 DateFormat('yMd').format(n.deadline!) != DateFormat('yMd').format(DateTime.now());
           }
 
+          // UI Component: Timeline Layout Row
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // UI Component: The "Timeline" visual effect (Left side).
+              // Consists of a small Circle Icon and a vertical grey line.
               Column(children: [
                 const SizedBox(height: 16),
                 const Icon(Icons.circle, size: 12, color: Color(0xFFFF6B4A)),
                 Container(width: 2, height: 100, color: Colors.grey[300])
               ]),
               const SizedBox(width: 12),
+
+              // UI Component: The Content Card (Right side).
+              // Wrapped in Expanded to take up the remaining width.
               Expanded(
                 child: Card(
                   child: Padding(
@@ -69,10 +86,13 @@ class _NotesTimelineScreenState extends State<NotesTimelineScreen> {
                         const SizedBox(height: 4),
                         Text(n.description),
 
+                        // UI Component: Conditional Deadline Display
+                        // Only shows this row if a deadline exists.
                         if (n.deadline != null) ...[
                           const SizedBox(height: 8),
                           Row(
                             children: [
+                              // Visual: Red icon if overdue, Blue if upcoming.
                               Icon(Icons.timer, size: 14, color: isOverdue ? Colors.red : Colors.blue),
                               const SizedBox(width: 4),
                               Text(
@@ -84,6 +104,7 @@ class _NotesTimelineScreenState extends State<NotesTimelineScreen> {
                         ],
 
                         const Divider(),
+                        // UI Component: Footer Row (Skill Name + Date Created)
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [

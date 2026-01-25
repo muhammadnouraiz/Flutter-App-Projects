@@ -1,16 +1,18 @@
 // File: lib/views/home/home_screen.dart
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'dart:math' as math; // For custom painter
+import 'dart:math' as math; // Used for calculating angles in the circular progress bar
 import '../../models/skill_model.dart';
 
 class HomeScreen extends StatefulWidget {
-  // [MODIFIED] Added the callback
+  // Logic: A 'Callback' is a function passed from a parent widget.
+  // Here, the parent (Main Shell) tells Home Screen what to do when "See All" is tapped.
+  // This helps switch tabs programmatically.
   final VoidCallback onSeeAllTapped;
 
   const HomeScreen({
     super.key,
-    required this.onSeeAllTapped, // Make it required
+    required this.onSeeAllTapped, // Required to ensure navigation works
   });
 
   @override
@@ -25,11 +27,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
 
+    // Logic: Database Setup.
+    // 1. Get the current user's email.
+    // 2. Open their specific Skills Box.
+    // 3. Retrieve their actual name to display in the greeting "Hi, [Name]".
     final userBox = Hive.box('userBox');
     final email = userBox.get('currentUserEmail', defaultValue: 'guest') as String;
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     skillsBox = Hive.box<SkillModel>('skillsBox_$sanitizedEmail');
 
+    // Logic: Name Retrieval
     if (email == 'guest') {
       userName = 'Guest';
     } else {
@@ -48,12 +55,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
     return Container(
       color: Colors.white,
+      // State Management: ValueListenableBuilder listens to the database.
+      // Whenever a skill is added/edited anywhere, this builder rebuilds the UI instantly.
       child: ValueListenableBuilder<Box<SkillModel>>(
         valueListenable: skillsBox.listenable(),
         builder: (context, box, _) {
           final allSkills = box.values.toList().cast<SkillModel>();
+          // Logic: Filter out completed skills (100%) so Home only shows active tasks.
           final activeSkills = allSkills.where((s) => s.progress < 100).toList();
 
+          // Logic: Calculate average progress for the top "Weekly Progress" card.
           double avgProgress = 0.0;
           if (allSkills.isNotEmpty) {
             avgProgress = allSkills.map((s) => s.progress).reduce((a, b) => a + b) /
@@ -65,13 +76,18 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // UI Component: "Hi, Name" greeting
                 _buildHeader(primaryColor, userName),
+
                 Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
+                      // UI Component: The large top card with circular progress
                       _buildWeeklyProgressCard(primaryColor, avgProgress.toInt()),
                       const SizedBox(height: 24),
+
+                      // UI Component: "Active Skills" Header + "See All" button
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -83,7 +99,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           TextButton(
-                            // [FIXED] Use the callback from the parent widget
+                            // Logic: Triggers the callback to switch to the "Library" tab
                             onPressed: widget.onSeeAllTapped,
                             child: const Text('See all',
                                 style: TextStyle(color: primaryColor)),
@@ -91,6 +107,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
+
+                      // Logic: Conditional Rendering
+                      // 1. No skills at all? Show "Empty State" (Add your first skill).
+                      // 2. All skills 100%? Show "All Completed State" (Great job!).
+                      // 3. Otherwise, show the list of active skill cards.
                       if (allSkills.isEmpty)
                         _buildEmptyState(primaryColor)
                       else if (activeSkills.isEmpty)
@@ -98,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       else
                         ListView.separated(
                           shrinkWrap: true,
+                          // Disable scrolling here so the parent SingleChildScrollView handles it
                           physics: const NeverScrollableScrollPhysics(),
                           itemCount: activeSkills.length,
                           separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -109,7 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 80),
+                const SizedBox(height: 80), // Extra space at bottom for scrolling
               ],
             ),
           );
@@ -118,6 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // UI Component: Header section with Name and Subtext
   Widget _buildHeader(Color primaryColor, String name) {
     return SafeArea(
       bottom: false,
@@ -147,11 +170,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // UI Component: Top Card showing "Weekly Progress" with Circle Graph
   Widget _buildWeeklyProgressCard(Color primaryColor, int averageProgress) {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF6F4),
+        color: const Color(0xFFFFF6F4), // Light Orange Background
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -179,6 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 20),
+          // Custom Widget: The Circular Progress Indicator
           _LiveCircularProgress(
             progressPercent: averageProgress,
             primaryColor: primaryColor,
@@ -188,6 +213,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // UI Component: Shown when user has 0 skills in database
   Widget _buildEmptyState(Color primaryColor) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -232,11 +258,12 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // UI Component: Shown when all skills are 100% complete
   Widget _buildAllCompletedState() {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.green[50],
+        color: Colors.green[50], // Light Green Background
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.green[200]!),
       ),
@@ -265,7 +292,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // UI Component: Individual Skill Card in the list
   Widget _buildSkillCard(SkillModel skill, Color primaryColor) {
+    // Helper: Selects icon based on skill category
     IconData getCategoryIcon(String category) {
       switch (category) {
         case 'Tech':
@@ -281,6 +310,7 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    // Logic: Tapping the card navigates to Detail Screen
     return GestureDetector(
       onTap: () => Navigator.pushNamed(context, '/skill/detail', arguments: skill.key),
       child: Container(
@@ -292,6 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Row(
           children: [
+            // Icon Circle
             CircleAvatar(
               radius: 24,
               backgroundColor: primaryColor.withAlpha(26),
@@ -299,6 +330,7 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(getCategoryIcon(skill.category)),
             ),
             const SizedBox(width: 16),
+            // Skill Name and Category Text
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -322,6 +354,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(width: 16),
+            // Progress Percent and Linear Bar
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -351,6 +384,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+// Custom Widget: Draws the Circular Progress Indicator using CustomPaint
 class _LiveCircularProgress extends StatelessWidget {
   const _LiveCircularProgress({
     required this.progressPercent,
@@ -367,6 +401,7 @@ class _LiveCircularProgress extends StatelessWidget {
       height: 70,
       child: Stack(
         children: [
+          // Background Circle (Light Orange)
           CustomPaint(
             size: const Size(70, 70),
             painter: _ProgressArcPainter(
@@ -375,6 +410,7 @@ class _LiveCircularProgress extends StatelessWidget {
               strokeWidth: 8,
             ),
           ),
+          // Foreground Arc (Dark Orange) - Based on actual progress
           CustomPaint(
             size: const Size(70, 70),
             painter: _ProgressArcPainter(
@@ -383,6 +419,7 @@ class _LiveCircularProgress extends StatelessWidget {
               strokeWidth: 8,
             ),
           ),
+          // Centered Percentage Text
           Center(
             child: Text(
               '$progressPercent%',
@@ -398,6 +435,7 @@ class _LiveCircularProgress extends StatelessWidget {
   }
 }
 
+// Canvas Painter: Low-level drawing code for the circular arc
 class _ProgressArcPainter extends CustomPainter {
   _ProgressArcPainter({
     required this.percent,
@@ -421,8 +459,8 @@ class _ProgressArcPainter extends CustomPainter {
     final radius = (size.width - strokeWidth) / 2;
     final rect = Rect.fromCircle(center: center, radius: radius);
 
-    const startAngle = -math.pi / 2;
-    final sweepAngle = percent * 2 * math.pi;
+    const startAngle = -math.pi / 2; // Starts from top (12 o'clock)
+    final sweepAngle = percent * 2 * math.pi; // Calculates arc length
 
     canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
   }

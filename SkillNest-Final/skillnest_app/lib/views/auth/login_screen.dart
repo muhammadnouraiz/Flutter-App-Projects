@@ -13,11 +13,15 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
+  // Controllers to capture user input
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
+  // State variable to toggle password visibility (eye icon)
   bool _isPasswordObscured = true;
 
-  /// 🧠 Utility: open user-specific Hive boxes using sanitized email.
+  /// 🧠 Logic: Handles Multi-User Support.
+  /// It takes the email, removes special characters, and opens a specific Hive box (database)
+  /// for that user. This ensures User A doesn't see User B's skills.
   Future<void> _openUserSpecificBoxes(String email) async {
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
 
@@ -30,13 +34,18 @@ class _LoginScreenState extends State<LoginScreen> {
     await userBox.put('currentUserEmail', email);
   }
 
-  /// 🧩 Login logic (Updated for multiple accounts)
+  /// 🧩 Logic: Authentication.
+  /// 1. Validates form inputs.
+  /// 2. Checks if email exists in 'allUsers' map in Hive.
+  /// 3. Matches password.
+  /// 4. If correct, saves login state and navigates to Main App (Shell).
   Future<void> _login() async {
     if (!_form.currentState!.validate()) return;
     final box = Hive.box('userBox');
 
     final allUsers = box.get('allUsers', defaultValue: <String, String>{}) as Map;
 
+    // Validation: Check if email exists
     if (!allUsers.containsKey(_email.text)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -50,19 +59,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
     final storedPassword = allUsers[_email.text];
 
+    // Validation: Check password match
     if (storedPassword == _password.text) {
-      // ✅ Success!
+      // ✅ Success! Save session state.
       await box.put('isLoggedIn', true);
       await box.put('isGuest', false);
 
       await _openUserSpecificBoxes(_email.text);
 
       if (mounted) {
-        // [FIXED] Navigate to the '/shell' route, not '/home'
+        // [FIXED] Navigate to the '/shell' route (Main Navigation), not '/home'
         Navigator.pushReplacementNamed(context, '/shell');
       }
     } else {
-      // ❌ Password incorrect
+      // ❌ Error: Show red Snackbar
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -73,7 +83,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// 👤 Continue as guest
+  /// 👤 Logic: Guest Mode.
+  /// Skips authentication and opens a generic 'guest' database box.
   Future<void> _continueAsGuest() async {
     final box = Hive.box('userBox');
     await box.put('isGuest', true);
@@ -87,14 +98,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const Color primaryColor = Color(0xFFFF6B4A);
-    const Color screenBgColor = Color(0xFF333333);
+    const Color primaryColor = Color(0xFFFF6B4A); // App Orange
+    const Color screenBgColor = Color(0xFF333333); // Dark Grey Background
 
     return Scaffold(
       backgroundColor: screenBgColor,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
+          // UI Component: The White Card Container holding the form
           child: Container(
             padding: const EdgeInsets.all(24.0),
             decoration: BoxDecoration(
@@ -105,7 +117,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Logo
+                // UI Component: App Icon/Logo
                 Align(
                   alignment: Alignment.center,
                   child: Image.asset(
@@ -115,6 +127,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                // UI Component: "Welcome to SkillNest" Header
                 const Text(
                   'Welcome to SkillNest',
                   textAlign: TextAlign.center,
@@ -134,9 +147,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // UI Component: The Login/Signup toggle tabs
                 _buildTabSwitcher(context,
                     active: 'login', primaryColor: primaryColor),
                 const SizedBox(height: 24),
+
+                // UI Component: The Input Form (Email & Password)
                 Form(
                   key: _form,
                   child: Column(
@@ -158,10 +174,11 @@ class _LoginScreenState extends State<LoginScreen> {
                         hint: '•••••••••',
                         controller: _password,
                         primaryColor: primaryColor,
-                        obscureText: _isPasswordObscured,
+                        obscureText: _isPasswordObscured, // Hides text if true
                         validator: (v) => (v == null || v.length < 4)
                             ? 'Password must be at least 4 characters'
                             : null,
+                        // UI Component: The Eye Icon to toggle visibility
                         suffixIcon: IconButton(
                           icon: Icon(
                             _isPasswordObscured
@@ -180,6 +197,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // UI Component: The Main Orange "Continue" Button
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
@@ -197,6 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: const Text('Continue'),
                 ),
                 const SizedBox(height: 16),
+                // UI Component: "Continue as Guest" text link
                 TextButton(
                   onPressed: _continueAsGuest,
                   child: const Text(
@@ -216,6 +235,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // UI Component: Builds the "Login | Signup" row
   Widget _buildTabSwitcher(BuildContext context,
       {required String active, required Color primaryColor}) {
     return Row(
@@ -236,6 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // Helper widget for individual tab text with underline
   Widget _buildTabItem(
       String text, bool isActive, Color primaryColor, VoidCallback onTap) {
     return GestureDetector(
@@ -265,6 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // Helper widget to style TextFields uniformly
   Widget _buildTextField({
     required String label,
     required String hint,
@@ -297,14 +319,17 @@ class _LoginScreenState extends State<LoginScreen> {
             fillColor: Colors.white,
             contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            // Default grey border
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: Colors.grey[300]!, width: 1.5),
             ),
+            // Orange border when clicked
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: BorderSide(color: primaryColor, width: 2),
             ),
+            // Red border on error
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Colors.red, width: 1.5),

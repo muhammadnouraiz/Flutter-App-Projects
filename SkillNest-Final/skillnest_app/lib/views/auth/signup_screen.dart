@@ -13,11 +13,16 @@ class SignupScreen extends StatefulWidget {
 
 class _SignupScreenState extends State<SignupScreen> {
   final _form = GlobalKey<FormState>();
+  // Controllers to capture user input
   final TextEditingController _name = TextEditingController();
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
+  // UI State: Toggles password visibility
   bool _isPasswordObscured = true;
 
+  /// 🧠 Logic: Multi-User Data Isolation.
+  /// Creates or opens a unique database box based on the user's email.
+  /// This ensures that User A cannot see User B's skills or notes.
   Future<void> _openUserSpecificBoxes(String email) async {
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
 
@@ -29,13 +34,20 @@ class _SignupScreenState extends State<SignupScreen> {
     await userBox.put('currentUserEmail', email);
   }
 
+  /// 🧩 Logic: Registration Process.
+  /// 1. Validates inputs.
+  /// 2. Checks if email already exists (Duplicate Prevention).
+  /// 3. Saves credentials to 'allUsers' map in Hive.
+  /// 4. Logs the user in and navigates to Main App.
   Future<void> _signup() async {
     if (!_form.currentState!.validate()) return;
     final box = Hive.box('userBox');
 
+    // Fetch existing users map
     final allUsers = Map<String, String>.from(
         box.get('allUsers', defaultValue: <String, String>{}) as Map);
 
+    // Validation: Check for duplicates
     if (allUsers.containsKey(_email.text)) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -45,18 +57,22 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
+    // Storage: Save Email/Password
     allUsers[_email.text] = _password.text;
     await box.put('allUsers', allUsers);
 
+    // Storage: Save User Name (for Profile Screen greeting)
     final userNames = Map<String, String>.from(
         box.get('userNames', defaultValue: <String, String>{}) as Map);
 
     userNames[_email.text] = _name.text;
     await box.put('userNames', userNames);
 
+    // Session: Set login state
     await box.put('isLoggedIn', true);
     await box.put('isGuest', false);
 
+    // Initialize their personal DB
     await _openUserSpecificBoxes(_email.text);
 
     if (!mounted) return;
@@ -65,11 +81,13 @@ class _SignupScreenState extends State<SignupScreen> {
       backgroundColor: Colors.green,
     ));
     if (mounted) {
-      // [FIXED] Navigate to the '/shell' route, not '/home'
+      // [FIXED] Navigate to the '/shell' route (Main Navigation)
       Navigator.pushReplacementNamed(context, '/shell');
     }
   }
 
+  /// 👤 Logic: Guest Mode.
+  /// Skips registration and uses the generic 'guest' database.
   Future<void> _continueAsGuest() async {
     final box = Hive.box('userBox');
     await box.put('isGuest', true);
@@ -78,7 +96,7 @@ class _SignupScreenState extends State<SignupScreen> {
     await _openUserSpecificBoxes('guest');
 
     if (mounted) {
-      // [FIXED] Navigate to the '/shell' route, not '/home'
+      // [FIXED] Navigate to the '/shell' route
       Navigator.pushReplacementNamed(context, '/shell');
     }
   }
@@ -93,6 +111,7 @@ class _SignupScreenState extends State<SignupScreen> {
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
+          // UI Component: The White Card Container
           child: Container(
             padding: const EdgeInsets.all(24.0),
             decoration: BoxDecoration(
@@ -103,6 +122,7 @@ class _SignupScreenState extends State<SignupScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // UI Component: Logo/Icon
                 Align(
                   alignment: Alignment.center,
                   child: Image.asset(
@@ -112,6 +132,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
+                // UI Component: Header Text
                 const Text(
                   'Welcome to SkillNest',
                   textAlign: TextAlign.center,
@@ -131,8 +152,11 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // UI Component: Login/Signup Tab Switcher
                 _buildTabSwitcher(context, active: 'signup', primaryColor: primaryColor),
                 const SizedBox(height: 24),
+
+                // UI Component: Input Form (Name, Email, Password)
                 Form(
                   key: _form,
                   child: Column(
@@ -187,6 +211,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // UI Component: Orange "Continue" Button
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: primaryColor,
@@ -204,6 +229,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: const Text('Continue'),
                 ),
                 const SizedBox(height: 16),
+                // UI Component: Guest Link
                 TextButton(
                   onPressed: _continueAsGuest,
                   child: const Text(
@@ -223,6 +249,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
+  // UI Helper: Builds the Tab row (Login | Signup)
   Widget _buildTabSwitcher(BuildContext context, {required String active, required Color primaryColor}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -242,6 +269,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
+  // UI Helper: Individual Tab Item
   Widget _buildTabItem(String text, bool isActive, Color primaryColor, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
@@ -270,6 +298,7 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
+  // UI Helper: Standardizes Text Field styling
   Widget _buildTextField({
     required String label,
     required String hint,

@@ -5,8 +5,12 @@ import '../models/badge_model.dart';
 import '../models/skill_model.dart';
 import '../models/note_model.dart';
 
+// Service Class: Handles the logic for checking and awarding achievements.
+// It bridges the Database (Hive) and the UI (Snackbars/Badge Screen).
 class AchievementService {
-  // Helper to show a snackbar when a badge is unlocked
+
+  // UI Functionality: Displays the green "Snackbar" popup at the bottom of the screen
+  // telling the user they unlocked a badge (e.g., "🏆 Achievement Unlocked!").
   static void _showBadgeUnlock(BuildContext context, String title) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -16,7 +20,8 @@ class AchievementService {
     );
   }
 
-  /// Helper to check and add a badge.
+  /// Logic: Prevents duplicate badges. It checks if the badge title already exists
+  /// in the database before awarding it.
   static Future<void> _awardBadge(
       Box<BadgeModel> badgesBox, String title, BuildContext context) async {
     // Check if a badge with this TITLE already exists
@@ -25,11 +30,11 @@ class AchievementService {
     if (!alreadyEarned) {
       final newBadge = BadgeModel(
         title: title,
-        earned: true,
+        earned: true, // Sets the badge status to "Unlocked" (Full color in UI)
         iconPath: null, // The badges_screen will handle the icon
       );
 
-      await badgesBox.add(newBadge);
+      await badgesBox.add(newBadge); // Save to Hive Database
 
       // Check if context is still valid before showing SnackBar
       if (context.mounted) {
@@ -40,7 +45,8 @@ class AchievementService {
 
   // --- CHECK FUNCTIONS ---
 
-  /// Call this from AddSkillScreen
+  /// Trigger: Called immediately after the user taps "Add Skill" on the Add Skill Screen.
+  /// UI Impact: Unlocks "First Skill Added" or "10 Skills Added" cards in Profile > Badges.
   static Future<void> checkSkillAddedBadges(
       Box<SkillModel> skillsBox, Box<BadgeModel> badgesBox, BuildContext context) async {
 
@@ -55,7 +61,8 @@ class AchievementService {
     }
   }
 
-  /// Call this from AddNoteScreen
+  /// Trigger: Called after the user saves a note in "Add Note Screen".
+  /// UI Impact: Unlocks "5 Notes Created" badge in the Profile Screen.
   static Future<void> checkNoteAddedBadges(
       Box<NoteModel> notesBox, Box<BadgeModel> badgesBox, BuildContext context) async {
 
@@ -67,10 +74,12 @@ class AchievementService {
     // TODO: Add 'Weekly Streak' logic here.
   }
 
-  /// Call this from AddNoteScreen or SkillDetailScreen
+  /// Trigger: Called whenever progress is updated (Add Note or Edit Skill).
+  /// UI Impact: Unlocks "First Skill Completed" (100%) or "Overachiever" badges.
   static Future<void> checkSkillCompletedBadges(
       Box<SkillModel> skillsBox, Box<BadgeModel> badgesBox, BuildContext context) async {
 
+    // Logic: Filters skills that have reached 100% progress
     final completedSkills = skillsBox.values.where((s) => s.progress >= 100).toList();
 
     // [FIXED] Changed from == 1 to >= 1

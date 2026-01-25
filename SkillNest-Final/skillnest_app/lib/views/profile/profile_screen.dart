@@ -19,10 +19,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late Box userBox;
   late Box<SkillModel> skillBox;
 
+  // State variables for UI display
   String email = 'guest';
   String name = 'Guest';
   int totalSkills = 0;
 
+  // Avatar handling variables
   ImageProvider? _avatarImage;
   final ImagePicker _picker = ImagePicker();
 
@@ -32,6 +34,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserData();
   }
 
+  /// 🧠 Logic: Data Fetching.
+  /// 1. Gets the currently logged-in email.
+  /// 2. Retrieves the specific Name mapped to that email.
+  /// 3. Checks if a custom avatar image path exists locally.
   void _loadUserData() {
     userBox = Hive.box('userBox');
 
@@ -50,6 +56,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final sanitizedEmail = currentEmail.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     skillBox = Hive.box<SkillModel>('skillsBox_$sanitizedEmail');
 
+    // Logic: Avatar Persistence.
+    // Checks if the user previously saved an image path and if the file still exists on the phone.
     final String? imagePath = userBox.get('avatarPath_$currentEmail');
     ImageProvider? loadedImage;
     if (imagePath != null && File(imagePath).existsSync()) {
@@ -64,13 +72,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     });
   }
 
+  /// 📸 Logic: Image Picker.
+  /// Uses the 'image_picker' package to open the phone's gallery.
+  /// Saves the selected file path to Hive so it persists after app restart.
   Future<void> _pickImage() async {
     try {
       final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
 
       if (image != null) {
         await userBox.put('avatarPath_$email', image.path);
-        _loadUserData();
+        _loadUserData(); // Refresh UI
       }
     } catch (e) {
       if (mounted) {
@@ -81,6 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // Logic: Remove Avatar
   Future<void> _removeImage() async {
     await userBox.delete('avatarPath_$email');
     _loadUserData();
@@ -91,6 +103,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // UI Component: Bottom Sheet for Avatar options (Gallery or Remove)
   Future<void> _showImageOptionsSheet() async {
     await showModalBottomSheet(
       context: context,
@@ -123,6 +136,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// ✏️ Logic: Edit Profile Name.
+  /// Shows a dialog with a text field. Updates 'userNames' map in Hive if saved.
   Future<void> _showEditProfileDialog() async {
     final nameController = TextEditingController(text: name);
 
@@ -139,6 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Dialog Header
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -154,6 +170,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
+                // Name Input Field
                 const Text('Name',
                     style:
                     TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
@@ -181,13 +198,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   autofocus: true,
                 ),
                 const SizedBox(height: 16),
+                // Read-only Email Field
                 const Text('Email',
                     style:
                     TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
                 TextField(
                   controller: TextEditingController(text: email),
-                  readOnly: true,
+                  readOnly: true, // Prevents editing email
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Colors.grey[200],
@@ -198,6 +216,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                // Cancel / Save Buttons
                 Row(
                   children: [
                     Expanded(
@@ -241,6 +260,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       },
     );
 
+    // Save Logic: Updates Hive if name was changed
     if (newName != null && newName.isNotEmpty) {
       final userNames = Map<String, String>.from(
           userBox.get('userNames', defaultValue: <String, String>{}) as Map);
@@ -250,6 +270,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // UI Component: Confirmation before logout
   Future<void> _showLogoutDialog() async {
     final result = await showDialog<bool>(
       context: context,
@@ -282,6 +303,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// 🚪 Logic: Logout.
+  /// 1. Closes user-specific boxes (Safety).
+  /// 2. Sets 'isLoggedIn' to false in Hive.
+  /// 3. Navigates back to Login Screen and removes all previous routes from stack.
   Future<void> _logout() async {
     final email = userBox.get('currentUserEmail', defaultValue: 'guest') as String;
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
@@ -310,26 +335,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: SingleChildScrollView(
         child: Column(
           children: [
+            // UI Component: Avatar, Name, and Edit Button
             _buildSimpleHeader(context),
             Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
+                  // UI Component: Menu List Item - Badges
                   _buildMenuListItem(
                     title: 'Achievements & Badges',
                     icon: Icons.emoji_events_outlined,
-                    // [FIXED] Changed from SnackBar to navigate
+                    // [FIXED] Navigate to Badges Screen
                     onTap: () {
                       Navigator.pushNamed(context, '/badges');
                     },
                   ),
                   const SizedBox(height: 12),
+                  // UI Component: Menu List Item - Settings
                   _buildMenuListItem(
                     title: 'Settings',
                     icon: Icons.settings_outlined,
                     onTap: () => Navigator.pushNamed(context, '/settings'),
                   ),
                   const SizedBox(height: 12),
+                  // UI Component: Menu List Item - Logout (Red)
                   _buildMenuListItem(
                     title: 'Logout',
                     icon: Icons.logout_outlined,
@@ -345,6 +374,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  /// UI Component: Builds the top profile header.
   Widget _buildSimpleHeader(BuildContext context) {
     return SafeArea(
       bottom: false,
@@ -365,6 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
+                  // UI: Avatar with Edit Pencil overlay
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
@@ -403,6 +434,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
+                  // UI: User Name Text
                   Text(
                     name,
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -412,6 +444,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 4),
+                  // UI: User Email Text
                   Text(
                     email,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -419,6 +452,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // UI: Orange "Edit Profile" Button
                   ElevatedButton(
                     onPressed: _showEditProfileDialog,
                     style: ElevatedButton.styleFrom(
@@ -441,6 +475,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  // UI Component: Reusable helper for list buttons (Settings, Logout, etc.)
   Widget _buildMenuListItem({
     required String title,
     required IconData icon,

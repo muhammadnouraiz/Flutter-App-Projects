@@ -13,7 +13,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // [REMOVED] _notificationsOn variable
   // [REMOVED] userBox variable (was only used for notifications)
 
-  // This color is still needed for the icons
+  // UI Constant: The app's primary orange color for icons
   static const Color _brandColor = Color(0xFFFF6B4A);
 
   @override
@@ -32,6 +32,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // UI Component: Top Header with Back Button
             _buildSimpleHeader(context),
             Padding(
               padding: const EdgeInsets.all(16.0),
@@ -39,21 +40,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // [REMOVED] Notifications section
+
+                  // UI Component: Support Section Header
                   _buildSectionTitle('Support'),
                   const SizedBox(height: 12),
+
+                  // UI Component: Help & FAQ Card
                   _buildSupportCard(
                     title: 'Help & FAQ',
                     icon: Icons.help_outline,
                     onTap: () {
-                      // TODO: Add navigation to Help/FAQ page
+                      // Logic: Placeholder for future FAQ page navigation
                     },
                   ),
                   const SizedBox(height: 12),
+
+                  // UI Component: Privacy Policy Card
                   _buildSupportCard(
                     title: 'Privacy Policy',
                     icon: Icons.privacy_tip_outlined,
                     onTap: () {
-                      // TODO: Add navigation to Privacy Policy page
+                      // Logic: Placeholder for future Privacy page navigation
                     },
                   ),
                 ],
@@ -65,7 +72,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Builds the simple header to match the Home screen
+  /// UI Helper: Builds the top navigation bar with a back arrow
   Widget _buildSimpleHeader(BuildContext context) {
     return SafeArea(
       bottom: false,
@@ -73,13 +80,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         child: Row(
           children: [
-            // Back button
+            // Logic: Navigation. Pops the current Settings screen off the stack.
             IconButton(
               icon: const Icon(Icons.arrow_back, color: Colors.black87),
               onPressed: () => Navigator.pop(context),
             ),
             const SizedBox(width: 8),
-            // Title
+            // Title Text
             Text(
               'Settings',
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
@@ -93,7 +100,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  /// Builds the section title
+  /// UI Helper: Stylized section header text
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -110,7 +117,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // [REMOVED] _buildNotificationCard function
 
-  /// Builds the styled support/policy card
+  /// UI Helper: Reusable list item card for settings options
+  /// Consists of a leading Icon (Orange), Title Text, and a Trailing Arrow.
   Widget _buildSupportCard({
     required String title,
     required IconData icon,

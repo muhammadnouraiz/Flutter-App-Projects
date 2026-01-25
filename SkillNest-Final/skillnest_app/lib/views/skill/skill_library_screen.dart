@@ -12,21 +12,26 @@ class SkillLibraryScreen extends StatefulWidget {
 
 class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
   late final Box<SkillModel> skillsBox;
+
+  // State Variables: Track the current search text and dropdown selections
   String _search = '';
-  String _filter = 'All';
-  String _sort = 'Most Recent';
+  String _filter = 'All'; // Default: Show all categories
+  String _sort = 'Most Recent'; // Default: Show newest first
 
   static const Color _brandColor = Color(0xFFFF6B4A);
 
   @override
   void initState() {
     super.initState();
+    // Logic: Database Setup.
+    // Opens the specific 'skillsBox' for the logged-in user to show their data only.
     final userBox = Hive.box('userBox');
     final email = userBox.get('currentUserEmail', defaultValue: 'guest') as String;
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
     skillsBox = Hive.box<SkillModel>('skillsBox_$sanitizedEmail');
   }
 
+  // Helper: Returns specific icons for categories (e.g., Palette for Design)
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'Tech':
@@ -42,6 +47,8 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
     }
   }
 
+  // Helper: Logic to calculate "Due in X days" string.
+  // (Note: This specific helper is defined but might be used in other variations of the card).
   String _getDueDateText(DateTime deadline) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -58,8 +65,13 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
     }
   }
 
+  /// 🧠 Logic: Search & Filter Engine.
+  /// 1. SEARCH: Filters by checking if name or category contains the search string.
+  /// 2. FILTER: Keeps only skills matching the selected Category (or 'All').
+  /// 3. SORT: Reorders the list based on Deadline, Progress, or Creation Time.
   List<SkillModel> _applyFilters(List<SkillModel> list) {
     var res = list;
+    // Search Logic
     if (_search.isNotEmpty) {
       res = res
           .where((s) =>
@@ -67,15 +79,17 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
           s.category.toLowerCase().contains(_search.toLowerCase()))
           .toList();
     }
+    // Category Filter Logic
     if (_filter != 'All') {
       res = res.where((s) => s.category == _filter).toList();
     }
+    // Sorting Logic
     if (_sort == 'Deadline') {
       res.sort((a, b) => a.deadline.compareTo(b.deadline));
     } else if (_sort == 'Progress') {
       res.sort((a, b) => b.progress.compareTo(a.progress));
     } else if (_sort == 'Most Recent') {
-      res = res.reversed.toList();
+      res = res.reversed.toList(); // Hive stores oldest first, so reverse it
     }
     return res;
   }
@@ -83,16 +97,19 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
   @override
   Widget build(BuildContext buildContext) {
     return Container(
-      color: Colors.white, // Fixes black background
+      color: Colors.white, // Fixes potential black background issues
       child: Column(
-        // [FIXED] This line aligns all children (including the header) to the left.
+        // [FIXED] Aligns children to the left
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // UI Component: "Skills Library" Title
           _buildHeader(context),
+
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Column(
               children: [
+                // UI Component: Search Bar
                 TextField(
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search, color: Colors.grey),
@@ -113,9 +130,12 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
                       borderSide: const BorderSide(color: _brandColor, width: 2),
                     ),
                   ),
+                  // Logic: Updates '_search' state on every keystroke
                   onChanged: (v) => setState(() => _search = v),
                 ),
                 const SizedBox(height: 12),
+
+                // UI Component: Row containing Filter and Sort Dropdowns
                 Row(children: [
                   _buildStyledDropdown(
                     icon: Icons.filter_list,
@@ -140,22 +160,27 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
               ],
             ),
           ),
+
+          // UI Component: The Scrollable List of Skills
           Expanded(
             child: ValueListenableBuilder<Box<SkillModel>>(
-              valueListenable: skillsBox.listenable(),
+              valueListenable: skillsBox.listenable(), // Listens for database changes
               builder: (context, box, _) {
+                // Logic: Fetch all skills -> Apply Search/Filter -> Render
                 final skills =
                 _applyFilters(box.values.toList().cast<SkillModel>());
+
                 if (skills.isEmpty) {
-                  return _buildEmptyState();
+                  return _buildEmptyState(); // Show "No skills found"
                 }
+
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   itemCount: skills.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 12),
                   itemBuilder: (ctx, i) {
                     final s = skills[i];
-                    return _buildSkillCard(s);
+                    return _buildSkillCard(s); // Render individual card
                   },
                 );
               },
@@ -166,6 +191,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
     );
   }
 
+  // UI Component: Header Text
   Widget _buildHeader(BuildContext context) {
     return SafeArea(
       bottom: false,
@@ -187,6 +213,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
     );
   }
 
+  // UI Component: Custom Dropdown Widget with an Icon and Box styling
   Widget _buildStyledDropdown({
     required IconData icon,
     required String value,
@@ -214,6 +241,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
               );
             }).toList(),
             onChanged: onChanged,
+            // Custom Builder to show Icon + Text when collapsed
             selectedItemBuilder: (BuildContext context) {
               return items.map((String item) {
                 return Row(
@@ -232,6 +260,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
     );
   }
 
+  // UI Component: Shown when search returns 0 results
   Widget _buildEmptyState() {
     return Center(
       child: Column(
@@ -257,10 +286,12 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
     );
   }
 
+  // UI Component: Individual Skill Card
   Widget _buildSkillCard(SkillModel skill) {
     bool isCompleted = skill.progress == 100;
 
     return GestureDetector(
+      // Logic: Navigate to Details Screen on tap
       onTap: () =>
           Navigator.pushNamed(context, '/skill/detail', arguments: skill.key),
       child: Container(
@@ -279,6 +310,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
         ),
         child: Row(
           children: [
+            // Icon
             CircleAvatar(
               radius: 24,
               backgroundColor: _brandColor.withAlpha(26), // 0.1 opacity
@@ -286,6 +318,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
               child: Icon(_getCategoryIcon(skill.category)),
             ),
             const SizedBox(width: 16),
+            // Name & Date
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,6 +342,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
               ),
             ),
             const SizedBox(width: 16),
+            // Progress Bar & Percentage
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
@@ -317,6 +351,7 @@ class _SkillLibraryScreenState extends State<SkillLibraryScreen> {
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
+                      // Logic: Green text if 100%, otherwise Black
                       color: isCompleted ? Colors.green : Colors.black87),
                 ),
                 const SizedBox(height: 6),

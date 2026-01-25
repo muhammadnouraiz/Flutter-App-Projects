@@ -12,16 +12,19 @@ class SkillDetailScreen extends StatefulWidget {
 }
 
 class _SkillDetailScreenState extends State<SkillDetailScreen> {
+  // Database Boxes
   late final Box<SkillModel> skillsBox;
   late final Box<NoteModel> notesBox;
   SkillModel? skill;
-  dynamic skillKey;
+  dynamic skillKey; // The unique ID passed from the Home Screen
 
   static const Color _brandColor = Color(0xFFFF6B4A);
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Logic: Database Setup (Similar to other screens).
+    // Initializes boxes based on user email to ensure data isolation.
     final userBox = Hive.box('userBox');
     final email = userBox.get('currentUserEmail', defaultValue: 'guest') as String;
     final sanitizedEmail = email.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_');
@@ -29,21 +32,27 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     skillsBox = Hive.box<SkillModel>('skillsBox_$sanitizedEmail');
     notesBox = Hive.box<NoteModel>('notesBox_$sanitizedEmail');
 
+    // Logic: Argument Retrieval.
+    // Gets the specific Skill ID clicked by the user to know which data to show.
     skillKey = ModalRoute.of(context)!.settings.arguments;
     if (skillKey != null) {
       skill = skillsBox.get(skillKey);
     }
   }
 
+  // Logic: Cascading Delete.
+  // When a skill is deleted, we must also find and delete all Notes linked to it
+  // to prevent "orphaned" data.
   void _deleteSkill() async {
     await skillsBox.delete(skillKey);
     final toDelete = notesBox.values.where((n) => n.skillId == skillKey).toList();
     for (var n in toDelete) {
       await n.delete();
     }
-    if (mounted) Navigator.pop(context);
+    if (mounted) Navigator.pop(context); // Go back to Home
   }
 
+  // UI Component: Confirmation Dialog for deleting skill
   void _showDeleteDialog() {
     showDialog(
       context: context,
@@ -63,6 +72,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
+  // UI Component: Dialog to rename the skill
   void _showEditNameDialog(BuildContext context, SkillModel currentSkill) {
     final formKey = GlobalKey<FormState>();
     final nameController = TextEditingController(text: currentSkill.name);
@@ -86,6 +96,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
             ElevatedButton(
               onPressed: () {
                 if (formKey.currentState!.validate()) {
+                  // Logic: Save new name to Hive
                   currentSkill.name = nameController.text.trim();
                   currentSkill.save();
                   Navigator.pop(context);
@@ -99,6 +110,8 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
+  // Logic: Delete Note & Rollback Progress.
+  // If a note gave +10% progress, deleting it removes that 10% from the skill.
   void _showDeleteNoteDialog(NoteModel note, SkillModel currentSkill) {
     showDialog(
       context: context,
@@ -123,6 +136,8 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
+  // UI Component: Complex Dialog for Editing a Note
+  // Allows changing Title, Description, Progress Gain, and Deadline.
   void _showEditNoteDialog(NoteModel note, SkillModel currentSkill) {
     final formKey = GlobalKey<FormState>();
     final titleController = TextEditingController(text: note.title);
@@ -169,11 +184,13 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                         ),
                         const SizedBox(height: 16),
 
+                        // Date Picker Logic inside Dialog
                         InkWell(
                           onTap: () async {
                             final now = DateTime.now();
                             final lastAllowedDate = currentSkill.deadline;
 
+                            // Validation: Note deadline cannot be after skill deadline
                             if (lastAllowedDate.isBefore(now)) {
                               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Skill deadline has passed. Cannot set note deadline.')));
                               return;
@@ -235,19 +252,21 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                 ElevatedButton(
                   onPressed: () {
                     if (formKey.currentState!.validate()) {
+                      // Logic: Recalculate Skill Progress
+                      // Finds the difference between old progress gain and new, and updates skill.
                       final newTitle = titleController.text;
                       final newDesc = descController.text;
                       final newProgress = int.tryParse(progressController.text) ?? 0;
 
                       final progressDelta = newProgress - originalProgress;
                       currentSkill.progress = (currentSkill.progress + progressDelta).clamp(0, 100);
-                      currentSkill.save();
+                      currentSkill.save(); // Save Skill updates
 
                       note.title = newTitle;
                       note.description = newDesc;
                       note.progressGain = newProgress;
                       note.deadline = editedDeadline;
-                      note.save();
+                      note.save(); // Save Note updates
 
                       Navigator.pop(context);
                     }
@@ -262,6 +281,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
+  // Helper: Returns correct icon based on category string
   IconData _getCategoryIcon(String category) {
     switch (category) {
       case 'Tech': return Icons.code;
@@ -274,10 +294,13 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // State Management: ValueListenableBuilder listens to the Skill Box.
+    // If we rename the skill or update progress, this rebuilds the screen automatically.
     return ValueListenableBuilder(
       valueListenable: skillsBox.listenable(),
       builder: (context, Box<SkillModel> box, _) {
         final currentSkill = box.get(skillKey);
+        // Error Handling: If skill was deleted elsewhere
         if (currentSkill == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Error')),
@@ -293,6 +316,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
             foregroundColor: Colors.black87,
             elevation: 0,
             actions: [
+              // Icons for Edit Name and Delete Skill
               IconButton(icon: const Icon(Icons.edit, color: Colors.black54), onPressed: () => _showEditNameDialog(context, currentSkill)),
               IconButton(icon: const Icon(Icons.delete, color: Colors.black54), onPressed: _showDeleteDialog),
             ],
@@ -302,15 +326,19 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // UI: Top Card (Circular Progress + Due Date)
                 _buildProgressCard(currentSkill),
                 const SizedBox(height: 24),
+                // UI: Description Text
                 _buildDescriptionCard(currentSkill),
                 const SizedBox(height: 24),
+                // UI: List of Notes associated with this skill
                 _buildNotesSection(currentSkill),
                 const SizedBox(height: 80),
               ],
             ),
           ),
+          // UI: FAB to Add a new note
           floatingActionButton: FloatingActionButton.extended(
             onPressed: () => Navigator.pushNamed(context, '/note/add', arguments: skillKey),
             backgroundColor: _brandColor,
@@ -322,7 +350,9 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
+  // UI Component: Builds the main card showing the Circular Progress Indicator
   Widget _buildProgressCard(SkillModel currentSkill) {
+    // Logic: Date Calculation for "Due in X days" / "Overdue"
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
@@ -334,6 +364,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     bool isUrgent = false;
     bool isError = false;
 
+    // Logic: Determine text and color based on deadlines
     if (differenceInDays == 0) {
       dueText = 'Due today';
       isUrgent = true;
@@ -342,7 +373,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       final daysPast = differenceInDays.abs();
       dueText = 'Overdue by $daysPast day${daysPast == 1 ? '' : 's'}';
       isUrgent = true;
-      isError = true;
+      isError = true; // Red color
     } else {
       dueText = 'Due in $differenceInDays day${differenceInDays == 1 ? '' : 's'}';
       isUrgent = false;
@@ -361,12 +392,14 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       ),
       child: Column(
         children: [
+          // UI: Category Chip (e.g., Tech)
           Chip(
             label: Text(currentSkill.category, style: const TextStyle(color: _brandColor, fontWeight: FontWeight.bold)),
             backgroundColor: _brandColor.withOpacity(0.1),
             avatar: Icon(_getCategoryIcon(currentSkill.category), color: _brandColor),
           ),
           const SizedBox(height: 24),
+          // UI: The Big Circular Progress Bar
           SizedBox(
             height: 140,
             width: 140,
@@ -385,6 +418,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
             ),
           ),
           const SizedBox(height: 24),
+          // Logic: Show "Completed" checkmark if 100%, otherwise show due date
           if (currentSkill.progress >= 100)
             Row(mainAxisAlignment: MainAxisAlignment.center, children: const [Icon(Icons.check_circle, color: Colors.green, size: 18), SizedBox(width: 8), Text('Completed!', style: TextStyle(fontSize: 15, color: Colors.green, fontWeight: FontWeight.bold))])
           else
@@ -394,6 +428,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
+  // UI Component: Simple card displaying the description text
   Widget _buildDescriptionCard(SkillModel currentSkill) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -414,15 +449,18 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
+  // UI Component: The List of Notes
   Widget _buildNotesSection(SkillModel currentSkill) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Notes & Logs', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87)),
         const SizedBox(height: 12),
+        // Logic: Listen to Notes Box to update list when a note is added/edited
         ValueListenableBuilder(
           valueListenable: notesBox.listenable(),
           builder: (context, Box<NoteModel> box, _) {
+            // Filter: Only show notes belonging to THIS skill
             final notesForSkill = box.values.where((n) => n.skillId == skillKey).toList();
 
             // --- [UPDATED] Sorting Logic ---
@@ -453,9 +491,10 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
               );
             }
 
+            // UI: Render List of Note Cards
             return ListView.separated(
               shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
+              physics: const NeverScrollableScrollPhysics(), // Scroll handled by parent
               itemCount: notesForSkill.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (ctx, i) {
@@ -501,11 +540,13 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // UI: Show green progress gain if > 0
                         if (n.progressGain != null && n.progressGain! > 0)
                           Padding(
                             padding: const EdgeInsets.only(right: 8.0),
                             child: Text('+${n.progressGain}%', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                           ),
+                        // Edit/Delete Buttons for the Note
                         IconButton(icon: const Icon(Icons.edit, size: 20, color: Colors.black54), onPressed: () => _showEditNoteDialog(n, currentSkill)),
                         IconButton(icon: const Icon(Icons.delete, size: 20, color: Colors.red), onPressed: () => _showDeleteNoteDialog(n, currentSkill)),
                       ],
